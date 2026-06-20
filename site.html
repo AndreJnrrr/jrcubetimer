@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Cube Timer Pro</title>
+
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:system-ui;
+}
+
+body{
+    min-height:100vh;
+    color:white;
+
+    background:
+    radial-gradient(circle at 20% 20%, rgba(0,255,255,0.15), transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(0,255,120,0.12), transparent 45%),
+    linear-gradient(rgba(0,0,0,0.88), rgba(0,0,0,0.95)),
+    url("https://images.unsplash.com/photo-1591991564021-0662a8573190?q=80&w=2000");
+
+    background-size:cover;
+    background-position:center;
+    background-attachment:fixed;
+}
+
+header{
+    text-align:center;
+    padding:20px;
+}
+
+h1{
+    font-size:40px;
+    color:#00eaff;
+    text-shadow:0 0 25px #00eaff;
+}
+
+#timer{
+    font-size:110px;
+    text-align:center;
+    margin:25px 0;
+    font-weight:800;
+    user-select:none;
+    transition:0.2s;
+}
+
+.ready{
+    color:#00ff88;
+    transform:scale(1.05);
+}
+
+/* STATS */
+.stats{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+    gap:12px;
+    max-width:900px;
+    margin:0 auto;
+    padding:10px;
+}
+
+.card{
+    background:rgba(255,255,255,0.08);
+    border-radius:16px;
+    padding:14px;
+    backdrop-filter:blur(12px);
+}
+
+.card h3{
+    font-size:12px;
+    opacity:0.7;
+}
+
+.card div{
+    font-size:18px;
+    margin-top:6px;
+}
+
+/* BOTÕES */
+button{
+    background:linear-gradient(90deg,#00eaff,#00ff88);
+    border:none;
+    padding:10px 14px;
+    border-radius:12px;
+    cursor:pointer;
+    font-weight:700;
+    margin:10px;
+}
+
+/* CENTRALIZA BOTÃO */
+.center-btn{
+    text-align:center;
+    margin:15px 0;
+}
+
+/* LISTA */
+#list{
+    max-width:700px;
+    margin:20px auto;
+    padding:0 15px;
+}
+
+.item{
+    background:rgba(255,255,255,0.07);
+    margin:8px 0;
+    padding:10px;
+    border-radius:12px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+/* DELETE */
+.del{
+    background:#ff3b3b;
+    padding:6px 10px;
+    font-size:12px;
+    border-radius:8px;
+}
+
+/* CHART */
+.chart-box{
+    max-width:900px;
+    margin:30px auto;
+    padding:20px;
+    background:rgba(255,255,255,0.06);
+    border-radius:16px;
+    backdrop-filter:blur(12px);
+}
+
+canvas{
+    width:100%;
+    height:260px;
+}
+
+</style>
+</head>
+
+<body>
+
+<header>
+<h1>Cube Timer Pro</h1>
+</header>
+
+<div id="timer">0.000</div>
+
+<div class="stats">
+<div class="card"><h3>Média</h3><div id="avg">0.000</div></div>
+<div class="card"><h3>Melhor</h3><div id="best">--</div></div>
+<div class="card"><h3>Pior</h3><div id="worst">--</div></div>
+<div class="card"><h3>Solves</h3><div id="count">0</div></div>
+</div>
+
+<!-- BOTÃO CORRIGIDO -->
+<div class="center-btn">
+<button onclick="clearAll()">Apagar Tudo</button>
+</div>
+
+<div class="chart-box">
+<canvas id="chart"></canvas>
+</div>
+
+<div id="list"></div>
+
+<script>
+
+let state="idle";
+let start=0;
+let interval;
+
+const timer=document.getElementById("timer");
+const avg=document.getElementById("avg");
+const best=document.getElementById("best");
+const worst=document.getElementById("worst");
+const count=document.getElementById("count");
+const list=document.getElementById("list");
+const ctx=document.getElementById("chart").getContext("2d");
+
+function getTimes(){
+return JSON.parse(localStorage.getItem("cube_final"))||[];
+}
+
+function saveTimes(t){
+localStorage.setItem("cube_final",JSON.stringify(t));
+}
+
+function fmt(ms){
+return (ms/1000).toFixed(3);
+}
+
+/* TIMER */
+function startTimer(){
+start=Date.now();
+interval=setInterval(()=>{
+timer.textContent=fmt(Date.now()-start);
+},10);
+state="running";
+}
+
+function stopTimer(){
+clearInterval(interval);
+
+let t=parseFloat(fmt(Date.now()-start));
+
+let arr=getTimes();
+arr.unshift(t);
+
+saveTimes(arr);
+
+render();
+state="idle";
+}
+
+/* SPACE */
+document.addEventListener("keydown",(e)=>{
+if(e.code!=="Space")return;
+e.preventDefault();
+
+if(state==="running"){
+stopTimer();
+return;
+}
+
+state="ready";
+timer.classList.add("ready");
+});
+
+document.addEventListener("keyup",(e)=>{
+if(e.code!=="Space")return;
+e.preventDefault();
+
+if(state==="ready"){
+timer.classList.remove("ready");
+startTimer();
+}
+});
+
+/* DELETE */
+function remove(i){
+if(!confirm("Apagar este tempo?"))return;
+
+let arr=getTimes();
+arr.splice(i,1);
+saveTimes(arr);
+render();
+}
+
+/* CLEAR ALL */
+function clearAll(){
+if(!confirm("Apagar TODOS os tempos?"))return;
+
+localStorage.removeItem("cube_final");
+render();
+}
+
+/* RENDER */
+function render(){
+
+let arr=getTimes();
+
+count.textContent=arr.length;
+
+if(arr.length){
+avg.textContent=(arr.reduce((a,b)=>a+b)/arr.length).toFixed(3);
+best.textContent=Math.min(...arr).toFixed(3);
+worst.textContent=Math.max(...arr).toFixed(3);
+}
+
+/* LISTA */
+list.innerHTML=arr.map((t,i)=>`
+<div class="item">
+<div>#${i+1} — ${t.toFixed(3)}s</div>
+<button class="del" onclick="remove(${i})">apagar</button>
+</div>
+`).join("");
+
+drawChart(arr);
+}
+
+/* GRAPH */
+function drawChart(arr){
+
+ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
+
+let w=ctx.canvas.width=ctx.canvas.offsetWidth;
+let h=ctx.canvas.height=260;
+
+if(arr.length<2)return;
+
+let max=Math.max(...arr);
+let min=Math.min(...arr);
+
+ctx.beginPath();
+
+arr.slice().reverse().forEach((v,i)=>{
+
+let x=(i/(arr.length-1))*(w-20)+10;
+let y=h-((v-min)/(max-min||1))*(h-40)-20;
+
+if(i===0) ctx.moveTo(x,y);
+else ctx.lineTo(x,y);
+
+});
+
+ctx.strokeStyle="#00eaff";
+ctx.lineWidth=3;
+ctx.shadowBlur=10;
+ctx.shadowColor="#00eaff";
+ctx.stroke();
+
+/* points */
+arr.slice().reverse().forEach((v,i)=>{
+
+let x=(i/(arr.length-1))*(w-20)+10;
+let y=h-((v-min)/(max-min||1))*(h-40)-20;
+
+ctx.beginPath();
+ctx.arc(x,y,4,0,Math.PI*2);
+ctx.fillStyle="#00ff88";
+ctx.fill();
+});
+
+}
+
+render();
+
+</script>
+
+</body>
+</html>
